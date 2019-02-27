@@ -1,0 +1,93 @@
+version: '3.7'
+
+services:
+  elasticsearch:
+    container_name: survey_sf4_elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.6.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+  kibana:
+    container_name: survey_sf4_kibana
+    image: docker.elastic.co/kibana/kibana:6.6.0
+    links:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+
+  logstash:
+    container_name: survey_sf4_logstash
+    image: docker.elastic.co/logstash/logstash:6.6.0
+    links:
+      - elasticsearch
+    ports:
+      - "9600:9600"
+    volumes:
+      - ./.docker/logstash/pipeline/:/usr/share/logstash/pipeline/
+
+  nginx:
+    container_name: survey_sf4_nginx
+    image: nginx:alpine
+    links:
+      - php-fpm
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html:cached
+      - .docker/nginx/config/nginx.conf:/etc/nginx/conf.d/default.conf
+
+  postgres:
+    #        command: psql -a symfony -c 'CREATE EXTENSION "uuid-ossp" WITH SCHEMA pg_catalog'
+    container_name: survey_sf4_postgres
+    environment:
+      POSTGRES_PASSWORD: test
+    build: .docker/postgres
+    ports:
+      - "5432:5432"
+
+  php-fpm:
+    build: .docker/php-fpm
+    container_name: survey_sf4_php
+    environment:
+      APCU_ENABLED: 'On'
+      APCU_ENABLE_CLI: 'Off'
+      OPCACHE_ENABLE: 'On'
+      OPCACHE_MAX_ACCELERATED_FILES: 20000
+      OPCACHE_MEMORY_CONSUMPTION: 256
+      OPCACHE_VALIDATE_TIMESTAMPS: 1
+      REALPATH_CACHE_SIZE: '4M'
+      REALPATH_CACHE_TTL: 7200
+      TIMEZONE: "Europe/Paris"
+      #            XDEBUG_REMOTE_AUTOSTART: 'On'
+      XDEBUG_REMOTE_ENABLE: 'On'
+      XDEBUG_REMOTE_HOST: 'localhost'
+      XDEBUG_REMOTE_PORT: 9001
+      XDEBUG_IDE_KEY: 'PHPSTORM'
+    links:
+      - postgres
+    #      - redis
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./.docker/php-fpm/php.ini:/usr/local/etc/php/php.ini:ro
+      - ./.docker/php-fpm/conf.d:/usr/local/etc/php/conf.d:ro
+      - ./:/var/www/html
+
+  # redis:
+  #   container_name: survey_sf4_redis
+  #   image: redis:alpine
+  #   ports:
+  #     - "6379"
+
+  # varnish:
+  #   container_name: survey_sf4_varnish
+  #   image: cooptilleuls/varnish:alpine
+  #   volumes:
+  #     - .docker/varnish/config/default.vcl:/usr/local/etc/varnish/default.vcl:ro
+  #   links:
+  #     - nginx
+  #   ports:
+  #     - "80:80"
+  #   tmpfs:
+  #     - /usr/local/var/varnish:exec
